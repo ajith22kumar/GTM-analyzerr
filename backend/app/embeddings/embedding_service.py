@@ -1,29 +1,3 @@
-"""
-Generates embeddings for chunk text. Three providers:
-
-- "local": runs a small open-source model (fastembed / ONNX) on this
-  machine. Free, no API key, no account, works offline after the first
-  model download. Its vectors are zero-padded up to EMBEDDING_DIMENSIONS
-  so the existing database column keeps working; padding with zeros does
-  not change cosine similarity, so search results are unaffected.
-
-- "openai": calls OpenAI's embeddings endpoint for real. This is the
-  path a production deployment uses, but IMPORTANT — it has not been
-  exercised against the real network in this environment (the sandbox
-  this was built in cannot reach api.openai.com). The request/response
-  shape matches OpenAI's documented API exactly, and everything around
-  it (batching, retries, dimension validation, pgvector storage,
-  similarity search) has been tested for real against the "fake"
-  provider — see tests/test_embedding_service.py and
-  tests/test_rag_retrieval.py. Confirm the OpenAI call itself works in
-  your environment before relying on it in production.
-- "fake": a deterministic, dependency-free hash-based embedding. It
-  carries no real semantic meaning (do NOT use it for an actual GTM
-  report) but is stable and reproducible, which makes it useful for
-  testing the rest of the pipeline — chunking, batching, storage,
-  pgvector similarity search — without hitting a paid API or needing
-  network access. Used automatically when no API key is configured.
-"""
 from __future__ import annotations
 
 import asyncio
@@ -54,15 +28,6 @@ class EmbeddingProvider(ABC):
 
 
 class FakeEmbeddingProvider(EmbeddingProvider):
-    """
-    Deterministic pseudo-embedding: hashes the text into a fixed-size
-    float vector, then normalizes it to unit length (so cosine similarity
-    behaves the way a real embedding's would, structurally). Two calls
-    with the same text always produce the same vector, and texts sharing
-    more words tend to be (weakly) closer — enough to test that
-    similarity search and ranking code actually works end-to-end,
-    without needing a real semantic model.
-    """
 
     def __init__(self, dimensions: int = 1536):
         self.dimensions = dimensions
@@ -89,10 +54,6 @@ class FakeEmbeddingProvider(EmbeddingProvider):
 
 @functools.lru_cache(maxsize=2)
 def _load_local_model(model_name: str):
-    """Loads (and caches) the local ONNX embedding model. The first call
-    downloads the model files once (~130 MB) into a local cache folder;
-    later runs reuse them. Cached in-process so repeated chat requests
-    don't reload the model every time."""
     try:
         from fastembed import TextEmbedding
     except ImportError as exc:  # pragma: no cover - depends on environment
@@ -104,7 +65,6 @@ def _load_local_model(model_name: str):
 
 
 class LocalEmbeddingProvider(EmbeddingProvider):
-    """Free, key-less embeddings computed on this machine."""
 
     def __init__(self, model_name: str, dimensions: int):
         self.model_name = model_name
@@ -132,12 +92,6 @@ class LocalEmbeddingProvider(EmbeddingProvider):
 
 
 class OpenAIEmbeddingProvider(EmbeddingProvider):
-    """
-    Calls OpenAI's /v1/embeddings endpoint directly over HTTP (avoids
-    pulling in the full openai SDK for one endpoint). NOT exercised
-    against the real network in this build — see module docstring.
-    """
-
     API_URL = "https://api.openai.com/v1/embeddings"
 
     def __init__(self, api_key: str, model: str, dimensions: int):
@@ -170,8 +124,7 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
                 f"OpenAI embeddings request failed: {resp.status_code} {resp.text[:500]}"
             )
         data = resp.json()
-        # OpenAI returns items in the same order as input, but sorts by
-        # an explicit `index` field — respect it rather than assuming.
+        
         items = sorted(data["data"], key=lambda item: item["index"])
         vectors = [item["embedding"] for item in items]
         for v in vectors:

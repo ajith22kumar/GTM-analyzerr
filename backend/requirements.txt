@@ -1,9 +1,4 @@
-# These version ranges are anchored to what this project was built and
-# tested against (verified together against a real Postgres+pgvector
-# instance and a real crawl). If you widen a range and something breaks,
-# re-run `pytest tests/` to bisect.
 
-# --- Web framework ---
 fastapi>=0.115,<0.150
 uvicorn[standard]>=0.32,<0.54
 pydantic>=2.9,<2.14
@@ -15,28 +10,18 @@ beautifulsoup4>=4.12,<4.16
 lxml>=5.3,<6.2
 playwright>=1.47,<1.49
 
-# --- Database ---
+
 sqlalchemy[asyncio]>=2.0,<2.2
 asyncpg>=0.29,<0.32
 pgvector>=0.3,<0.6
 greenlet>=3.1
 alembic>=1.13,<1.14
-
-# --- RAG / LLM ---
-# anthropic: not yet imported anywhere — reserved for Phase 3's
-# LLM-driven GTM analysis. openai/tiktoken were removed: the OpenAI
-# embeddings call is made via raw httpx (see embedding_service.py) to
-# avoid pulling in the full SDK for one endpoint, so they're not
-# actually imported anywhere in this codebase as of Phase 2.
 anthropic==0.34.2
 
-# Free, key-less local embeddings (EMBEDDING_PROVIDER=local)
 fastembed>=0.3,<0.8
 
-# --- Testing ---
 pytest>=8.3,<9.2
 pytest-asyncio>=0.24,<1.5
 
-# --- Utilities ---
 python-dotenv==1.0.1
 tenacity==9.0.0
