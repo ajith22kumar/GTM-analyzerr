@@ -1,0 +1,40 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: gtm_user
+      POSTGRES_PASSWORD: gtm_password
+      POSTGRES_DB: gtm_analyzer
+    ports:
+      - "5432:5432"
+    volumes:
+      - gtm_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gtm_user -d gtm_analyzer"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+    env_file:
+      - ./backend/.env
+    environment:
+      # Overrides .env's DATABASE_URL host so it always points at the
+      # compose network's postgres service, regardless of what's in .env.
+      DATABASE_URL: postgresql+asyncpg://gtm_user:gtm_password@postgres:5432/gtm_analyzer
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+
+volumes:
+  gtm_postgres_data:
+
+# NOTE: a `frontend` service will be added here in Phase 4, once the
+# React dashboard exists. Right now this backend is API-only — drive it
+# with curl/HTTPie or the interactive docs at http://localhost:8000/docs.
